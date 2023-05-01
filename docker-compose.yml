@@ -1,0 +1,87 @@
+version: '3'
+services:
+  #Nginx Service
+  webserver:
+    image: nginx:alpine
+    restart: unless-stopped
+    tty: true
+    ports:
+      - '9080:80'
+    volumes:
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+      - static_volume:/usr/src/app/static
+      - media_volume:/usr/src/app/media
+    networks:
+      - app-network
+
+  web:
+    build: ./django
+    # command: python manage.py runserver 0.0.0.0:9080
+    command: gunicorn --bind 0.0.0.0:9080 app.wsgi --workers=4
+    volumes:
+      - ./django/:/usr/src/app/
+      - static_volume:/usr/src/app/static
+      - media_volume:/usr/src/app/media
+    env_file:
+      - ./.env.dev
+    expose:
+      - '9080'
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  #MySQL Service
+  db:
+    platform: linux/amd64
+    image: mysql:8
+    restart: unless-stopped
+    tty: true
+    ports:
+      - '9081:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: "Asia/Tokyo"
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    volumes:
+      - ./docker/mysql/dbdata:/var/lib/mysql
+      - ./docker/mysql/conf.d/my.cnf:/etc/mysql/conf.d/docker.cnf
+    #   - ./docker/mysql/initdb.d:/docker-entrypoint-initdb.d
+    networks:
+      - app-network
+
+  #PHPMYADMIN
+  phpmyadmin:
+    image: phpmyadmin    
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      PMA_HOST: ${MYSQL_HOST}
+      PMA_USER: 'root'
+      PMA_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      PMA_ARBITRARY: 1
+      UPLOAD_LIMIT: 300M
+    links:
+      - db:db
+    networks:
+      - app-network
+    ports:
+      - '9082:80'
+
+#Docker Networks
+networks:
+  app-network:
+    driver: bridge
+#Volumes
+volumes:
+  media_volume:
+  static_volume:
+  dbdata:
+    driver: local
