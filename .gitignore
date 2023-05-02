@@ -1,3 +1,5 @@
 docker/mysql/dbdata
 django/media
 django/static
+.env
+.env.dev
